@@ -3,7 +3,7 @@
 package httpcontrol
 
 import (
-	"github.com/nshah/go.stats"
+	"github.com/daaku/go.stats"
 	"net/http"
 	"strings"
 	"time"
