@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -36,6 +37,7 @@ type Transport struct {
 	RequestTimeout        time.Duration
 	MaxTries              uint // Max retries for known safe failures.
 	Stats                 Stats
+	Debug                 bool // Verbose logging of request & response
 	transport             *http.Transport
 	closeMonitor          chan bool
 	pqMutex               sync.Mutex
@@ -74,6 +76,9 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 
 // Start the Transport.
 func (t *Transport) Start() error {
+	if t.Debug {
+		log.Println("httpcontrol: Start")
+	}
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
 	t.transport = &http.Transport{
 		Dial:                dialer.Dial,
@@ -94,6 +99,9 @@ func (t *Transport) Close() error {
 	t.transport.CloseIdleConnections()
 	t.closeMonitor <- true
 	<-t.closeMonitor
+	if t.Debug {
+		log.Println("httpcontrol: Close")
+	}
 	return nil
 }
 
@@ -117,6 +125,9 @@ func (t *Transport) monitor() {
 				}
 
 				req := item.Value.(*http.Request)
+				if t.Debug {
+					log.Printf("httpcontrol: Request Timeout: %s", req.URL)
+				}
 				t.CancelRequest(req)
 			}
 		}
@@ -128,6 +139,9 @@ func (t *Transport) CancelRequest(req *http.Request) {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.Debug {
+		log.Printf("httpcontrol: Request: %s", req.URL)
+	}
 	deadline := time.Now().Add(t.RequestTimeout).UnixNano()
 	item := &pqueue.Item{Value: req, Priority: deadline}
 	t.pqMutex.Lock()
@@ -216,6 +230,12 @@ func TransportFlag(name string) *Transport {
 		name+".max-tries",
 		0,
 		name+" max retries for known safe failures",
+	)
+	flag.BoolVar(
+		&t.Debug,
+		name+".debug",
+		false,
+		name+" debug logging",
 	)
 	return t
 }
