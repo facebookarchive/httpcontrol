@@ -5,6 +5,7 @@ package httpcontrol
 import (
 	"container/heap"
 	"crypto/tls"
+	"flag"
 	"io"
 	"net"
 	"net/http"
@@ -163,4 +164,58 @@ func (b *bodyCloser) Close() error {
 	}
 	b.transport.pqMutex.Unlock()
 	return err
+}
+
+// A Flag configured Transport instance.
+func TransportFlag(name string) *Transport {
+	t := &Transport{TLSClientConfig: &tls.Config{}}
+	flag.BoolVar(
+		&t.TLSClientConfig.InsecureSkipVerify,
+		name+".insecure-tls",
+		false,
+		name+" skip tls certificate verification",
+	)
+	flag.BoolVar(
+		&t.DisableKeepAlives,
+		name+".disable-keepalive",
+		false,
+		name+" disable keep-alives",
+	)
+	flag.BoolVar(
+		&t.DisableCompression,
+		name+".disable-compression",
+		false,
+		name+" disable compression",
+	)
+	flag.IntVar(
+		&t.MaxIdleConnsPerHost,
+		name+".max-idle-conns-per-host",
+		http.DefaultMaxIdleConnsPerHost,
+		name+" max idle connections per host",
+	)
+	flag.DurationVar(
+		&t.DialTimeout,
+		name+".dial-timeout",
+		2*time.Second,
+		name+" dial timeout",
+	)
+	flag.DurationVar(
+		&t.ResponseHeaderTimeout,
+		name+".response-header-timeout",
+		3*time.Second,
+		name+" response header timeout",
+	)
+	flag.DurationVar(
+		&t.RequestTimeout,
+		name+".request-timeout",
+		30*time.Second,
+		name+" request timeout",
+	)
+	flag.UintVar(
+		&t.MaxTries,
+		name+".max-tries",
+		0,
+		name+" max retries for known safe failures",
+	)
+	return t
 }
