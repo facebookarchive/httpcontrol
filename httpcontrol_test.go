@@ -53,7 +53,7 @@ func TestOkWithDefaults(t *testing.T) {
 	defer server.Close()
 	transport := &httpcontrol.Transport{}
 	call(transport.Start, t)
-	defer call(transport.Stop, t)
+	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
 	if err != nil {
@@ -68,7 +68,7 @@ func TestHttpError(t *testing.T) {
 	defer server.Close()
 	transport := &httpcontrol.Transport{}
 	call(transport.Start, t)
-	defer call(transport.Stop, t)
+	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
 	if err != nil {
@@ -86,7 +86,7 @@ func TestDialTimeout(t *testing.T) {
 	server.Close()
 	transport := &httpcontrol.Transport{}
 	call(transport.Start, t)
-	defer call(transport.Stop, t)
+	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
 	if err == nil {

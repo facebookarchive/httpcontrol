@@ -89,8 +89,8 @@ func (t *Transport) Start() error {
 	return nil
 }
 
-// Stop the Transport.
-func (t *Transport) Stop() error {
+// Close the Transport.
+func (t *Transport) Close() error {
 	t.transport.CloseIdleConnections()
 	t.closeMonitor <- true
 	<-t.closeMonitor
