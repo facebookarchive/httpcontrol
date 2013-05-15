@@ -68,6 +68,11 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 		return nil, err
 	}
 
+	// no caching required
+	if key == "" {
+		return res, nil
+	}
+
 	// fully buffer response for caching purposes
 	body, err := ioutil.ReadAll(res.Body)
 	res.Body.Close()
