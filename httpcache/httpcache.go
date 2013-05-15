@@ -27,8 +27,8 @@ type Config interface {
 
 // Cache enabled http.Transport.
 type Transport struct {
-	ByteCache ByteCache         // Cache where serialized responses will be stored.
 	Config    Config            // Provides cache key & timeout logic.
+	ByteCache ByteCache         // Cache where serialized responses will be stored.
 	Transport http.RoundTripper // The underlying http.RoundTripper for actual requests.
 }
 
