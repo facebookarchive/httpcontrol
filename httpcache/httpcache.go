@@ -136,8 +136,7 @@ func (c cacheByURL) MaxAge(res *http.Response) time.Duration {
 	return time.Duration(c)
 }
 
-// This caches against the URL with sorted query parameters for the specified
-// duration.
+// This caches against the entire URL for the specified duration.
 func CacheByURL(timeout time.Duration) Config {
 	return cacheByURL(timeout)
 }
