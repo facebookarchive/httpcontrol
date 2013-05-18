@@ -54,6 +54,12 @@ var knownFailureSuffixes = []string{
 }
 
 func shouldRetryError(err error) bool {
+	if neterr, ok := err.(net.Error); ok {
+		if neterr.Temporary() {
+			return true
+		}
+	}
+
 	s := err.Error()
 	for _, suffix := range knownFailureSuffixes {
 		if strings.HasSuffix(s, suffix) {
