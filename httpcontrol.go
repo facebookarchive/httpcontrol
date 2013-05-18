@@ -18,16 +18,32 @@ import (
 	"github.com/daaku/go.pqueue"
 )
 
-// Provides the ability to collect stats for interesting events. The
-// implementation must be safe for concurrent use by multiple goroutines.
-type Stats interface {
-	// This is called when a request is retried with the original request, the
-	// failed response (if any), try count and error.
-	Retry(req *http.Request, res *http.Response, try uint, err error)
+// Stats for a RoundTrip.
+type Stats struct {
+	// The RoundTrip request.
+	Request *http.Request
 
-	// This is called for any errors. It is called mutually exclusively from
-	// Retry stats (that is, only one of these will be called on an error).
-	Error(req *http.Request, res *http.Response, err error)
+	// May not always be available.
+	Response *http.Response
+
+	// Will be set if the RoundTrip resulted in an error.
+	Error error
+
+	// Each duration is independent and the sum of all of them is the total
+	// request duration. One or more durations may be zero.
+	Duration struct {
+		Header, Body time.Duration
+	}
+
+	Retry struct {
+		// Will be incremented for each retry. The initial request will have this set
+		// to 0, and the first retry to 1 and so on.
+		Count uint
+
+		// Will be set if and only if an error was encountered and a retry is
+		// pending.
+		Pending bool
+	}
 }
 
 // Look at http.Transport for the meaning of most of the fields here.
@@ -41,7 +57,7 @@ type Transport struct {
 	ResponseHeaderTimeout time.Duration
 	RequestTimeout        time.Duration
 	MaxTries              uint // Max retries for known safe failures.
-	Stats                 Stats
+	Stats                 func(*Stats)
 	Debug                 bool // Verbose logging of request & response
 	transport             *http.Transport
 	closeMonitor          chan bool
@@ -72,17 +88,6 @@ func shouldRetryError(err error) bool {
 		}
 	}
 	return false
-}
-
-func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
-	resp, err := t.transport.RoundTrip(req)
-	if err != nil && try < t.MaxTries && req.Method == "GET" && shouldRetryError(err) {
-		if t.Stats != nil {
-			t.Stats.Retry(req, resp, try, err)
-		}
-		return t.tries(req, try+1)
-	}
-	return resp, err
 }
 
 // Start the Transport.
@@ -149,48 +154,90 @@ func (t *Transport) CancelRequest(req *http.Request) {
 	t.transport.CancelRequest(req)
 }
 
-func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.Debug {
-		log.Printf("httpcontrol: Request: %s", req.URL)
-	}
-	deadline := time.Now().Add(t.RequestTimeout).UnixNano()
+func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
+	startTime := time.Now()
+	deadline := startTime.Add(t.RequestTimeout).UnixNano()
 	item := &pqueue.Item{Value: req, Priority: deadline}
 	t.pqMutex.Lock()
 	heap.Push(&t.pq, item)
 	t.pqMutex.Unlock()
-	res, err := t.tries(req, 0)
+	res, err := t.transport.RoundTrip(req)
+	headerTime := time.Now()
 	if err != nil {
 		t.pqMutex.Lock()
 		if item.Index != -1 {
 			heap.Remove(&t.pq, item.Index)
 		}
 		t.pqMutex.Unlock()
+
+		var stats *Stats
 		if t.Stats != nil {
-			t.Stats.Error(req, res, err)
+			stats = &Stats{
+				Request:  req,
+				Response: res,
+				Error:    err,
+			}
+			stats.Duration.Header = headerTime.Sub(startTime)
+			stats.Retry.Count = try
+		}
+
+		if try < t.MaxTries && req.Method == "GET" && shouldRetryError(err) {
+			if t.Stats != nil {
+				stats.Retry.Pending = true
+				t.Stats(stats)
+			}
+			return t.tries(req, try+1)
+		}
+
+		if t.Stats != nil {
+			t.Stats(stats)
 		}
 		return nil, err
 	}
+
 	res.Body = &bodyCloser{
 		ReadCloser: res.Body,
 		item:       item,
 		transport:  t,
+		startTime:  startTime,
+		headerTime: headerTime,
 	}
 	return res, nil
 }
 
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.Debug {
+		log.Printf("httpcontrol: Request: %s", req.URL)
+	}
+	return t.tries(req, 0)
+}
+
 type bodyCloser struct {
 	io.ReadCloser
-	item      *pqueue.Item
-	transport *Transport
+	res        *http.Response
+	item       *pqueue.Item
+	transport  *Transport
+	startTime  time.Time
+	headerTime time.Time
 }
 
 func (b *bodyCloser) Close() error {
 	err := b.ReadCloser.Close()
+	closeTime := time.Now()
 	b.transport.pqMutex.Lock()
 	if b.item.Index != -1 {
 		heap.Remove(&b.transport.pq, b.item.Index)
 	}
 	b.transport.pqMutex.Unlock()
+	if b.transport.Stats != nil {
+		stats := &Stats{
+			Request:  b.res.Request,
+			Response: b.res,
+		}
+		stats.Duration.Header = b.headerTime.Sub(b.startTime)
+		stats.Duration.Body = closeTime.Sub(b.startTime) - stats.Duration.Header
+		b.transport.Stats(stats)
+	}
 	return err
 }
 
