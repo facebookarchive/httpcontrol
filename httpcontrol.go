@@ -18,11 +18,16 @@ import (
 	"github.com/daaku/go.pqueue"
 )
 
-// Provides the ability to collect stats for interesting events.
+// Provides the ability to collect stats for interesting events. The
+// implementation must be safe for concurrent use by multiple goroutines.
 type Stats interface {
 	// This is called when a request is retried with the original request, the
 	// failed response (if any), try count and error.
 	Retry(req *http.Request, res *http.Response, try uint, err error)
+
+	// This is called for any errors. It is called mutually exclusively from
+	// Retry stats (that is, only one of these will be called on an error).
+	Error(req *http.Request, res *http.Response, err error)
 }
 
 // Look at http.Transport for the meaning of most of the fields here.
@@ -160,6 +165,9 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			heap.Remove(&t.pq, item.Index)
 		}
 		t.pqMutex.Unlock()
+		if t.Stats != nil {
+			t.Stats.Error(req, res, err)
+		}
 		return nil, err
 	}
 	res.Body = &bodyCloser{
