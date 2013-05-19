@@ -46,23 +46,79 @@ type Stats struct {
 	}
 }
 
-// Look at http.Transport for the meaning of most of the fields here.
+// Transport is an implementation of RoundTripper that supports http, https,
+// and http proxies (for either http or https with CONNECT). Transport can also
+// cache connections for future re-use. It also provides various timeouts,
+// retry logic and the ability to track request statistics.
 type Transport struct {
-	Proxy                 func(*http.Request) (*url.URL, error)
-	TLSClientConfig       *tls.Config
-	DisableKeepAlives     bool
-	DisableCompression    bool
-	MaxIdleConnsPerHost   int
-	DialTimeout           time.Duration
+
+	// Proxy specifies a function to return a proxy for a given
+	// *http.Request. If the function returns a non-nil error, the
+	// request is aborted with the provided error.
+	// If Proxy is nil or returns a nil *url.URL, no proxy is used.
+	Proxy func(*http.Request) (*url.URL, error)
+
+	// TLSClientConfig specifies the TLS configuration to use with
+	// tls.Client. If nil, the default configuration is used.
+	TLSClientConfig *tls.Config
+
+	// DisableKeepAlives, if true, prevents re-use of TCP connections
+	// between different HTTP requests.
+	DisableKeepAlives bool
+
+	// DisableCompression, if true, prevents the Transport from
+	// requesting compression with an "Accept-Encoding: gzip"
+	// request header when the Request contains no existing
+	// Accept-Encoding value. If the Transport requests gzip on
+	// its own and gets a gzipped response, it's transparently
+	// decoded in the Response.Body. However, if the user
+	// explicitly requested gzip it is not automatically
+	// uncompressed.
+	DisableCompression bool
+
+	// MaxIdleConnsPerHost, if non-zero, controls the maximum idle
+	// (keep-alive) to keep per-host.  If zero,
+	// http.DefaultMaxIdleConnsPerHost is used.
+	MaxIdleConnsPerHost int
+
+	// Timeout is the maximum amount of time a dial will wait for
+	// a connect to complete.
+	//
+	// The default is no timeout.
+	//
+	// With or without a timeout, the operating system may impose
+	// its own earlier timeout. For instance, TCP timeouts are
+	// often around 3 minutes.
+	DialTimeout time.Duration
+
+	// ResponseHeaderTimeout, if non-zero, specifies the amount of
+	// time to wait for a server's response headers after fully
+	// writing the request (including its body, if any). This
+	// time does not include the time to read the response body.
 	ResponseHeaderTimeout time.Duration
-	RequestTimeout        time.Duration
-	MaxTries              uint // Max retries for known safe failures.
-	Stats                 func(*Stats)
-	Debug                 bool // Verbose logging of request & response
-	transport             *http.Transport
-	closeMonitor          chan bool
-	pqMutex               sync.Mutex
-	pq                    pqueue.PriorityQueue
+
+	// RequestTimeout, if non-zero, specifies the amount of time for the entire
+	// request. This includes dialing (if necessary), the response header as well
+	// as the entire body.
+	RequestTimeout time.Duration
+
+	// MaxTries, if non-zero, specifies the number of times we will retry on
+	// failure. Retries are only attempted for temporary network errors or known
+	// safe failures.
+	MaxTries uint
+
+	// Stats allows for capturing the result of a request and is useful for
+	// monitoring purposes.
+	Stats func(*Stats)
+
+	// Debug, if true, will trigger logging of interesting events to aid in
+	// debugging the request flow.
+	Debug bool
+
+	transport    *http.Transport
+	closeMonitor chan bool
+	pqMutex      sync.Mutex
+	pq           pqueue.PriorityQueue
 }
 
 var knownFailureSuffixes = []string{
