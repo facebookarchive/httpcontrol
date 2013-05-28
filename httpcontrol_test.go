@@ -52,6 +52,23 @@ func TestOkWithDefaults(t *testing.T) {
 	server := httptest.NewServer(sleepHandler(time.Millisecond))
 	defer server.Close()
 	transport := &httpcontrol.Transport{}
+	transport.Stats = func(stats *httpcontrol.Stats) {
+		if stats.Error != nil {
+			t.Fatal(stats.Error)
+		}
+		if stats.Request == nil {
+			t.Fatal("got nil request in stats")
+		}
+		if stats.Response == nil {
+			t.Fatal("got nil response in stats")
+		}
+		if stats.Retry.Count != 0 {
+			t.Fatal("was expecting retry count of 0")
+		}
+		if stats.Retry.Pending {
+			t.Fatal("was expecting no retry pending")
+		}
+	}
 	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
@@ -67,6 +84,11 @@ func TestHttpError(t *testing.T) {
 	server := httptest.NewServer(errorHandler(time.Millisecond))
 	defer server.Close()
 	transport := &httpcontrol.Transport{}
+	transport.Stats = func(stats *httpcontrol.Stats) {
+		if stats.Error != nil {
+			t.Fatal(stats.Error)
+		}
+	}
 	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
@@ -85,6 +107,11 @@ func TestDialTimeout(t *testing.T) {
 	server := httptest.NewServer(sleepHandler(time.Millisecond))
 	server.Close()
 	transport := &httpcontrol.Transport{}
+	transport.Stats = func(stats *httpcontrol.Stats) {
+		if stats.Error == nil {
+			t.Fatal("was expecting error")
+		}
+	}
 	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
