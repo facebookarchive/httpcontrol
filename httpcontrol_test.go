@@ -102,7 +102,7 @@ func TestHttpError(t *testing.T) {
 	}
 }
 
-func TestDialTimeout(t *testing.T) {
+func TestDialNoServer(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(sleepHandler(time.Millisecond))
 	server.Close()
@@ -129,6 +129,28 @@ func TestDialTimeout(t *testing.T) {
 
 func TestResponseHeaderTimeout(t *testing.T) {
 	t.Parallel()
+	server := httptest.NewServer(sleepHandler(5 * time.Second))
+	transport := &httpcontrol.Transport{
+		ResponseHeaderTimeout: 50 * time.Millisecond,
+	}
+	transport.Stats = func(stats *httpcontrol.Stats) {
+		if stats.Error == nil {
+			t.Fatal("was expecting error")
+		}
+	}
+	call(transport.Start, t)
+	defer call(transport.Close, t)
+	client := &http.Client{Transport: transport}
+	res, err := client.Get(server.URL)
+	if err == nil {
+		t.Fatal("was expecting an error")
+	}
+	if res != nil {
+		t.Fatal("was expecting nil response")
+	}
+	if !strings.Contains(err.Error(), "use of closed network connection") {
+		t.Fatalf("was expecting closed network connection related error, got %s", err)
+	}
 }
 
 func TestResponseTimeout(t *testing.T) {
