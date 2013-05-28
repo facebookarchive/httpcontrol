@@ -253,6 +253,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 
 	res.Body = &bodyCloser{
 		ReadCloser: res.Body,
+		res:        res,
 		item:       item,
 		transport:  t,
 		startTime:  startTime,

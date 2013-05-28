@@ -2,13 +2,16 @@ package httpcontrol_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/daaku/go.freeport"
 	"github.com/daaku/go.httpcontrol"
 )
 
@@ -31,8 +34,12 @@ func errorHandler(timeout time.Duration) http.Handler {
 		})
 }
 
-func assertResponse(req *http.Response, t *testing.T) {
-	b, err := ioutil.ReadAll(req.Body)
+func assertResponse(res *http.Response, t *testing.T) {
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = res.Body.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +59,9 @@ func TestOkWithDefaults(t *testing.T) {
 	server := httptest.NewServer(sleepHandler(time.Millisecond))
 	defer server.Close()
 	transport := &httpcontrol.Transport{}
+	hit := false
 	transport.Stats = func(stats *httpcontrol.Stats) {
+		hit = true
 		if stats.Error != nil {
 			t.Fatal(stats.Error)
 		}
@@ -77,6 +86,9 @@ func TestOkWithDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertResponse(res, t)
+	if !hit {
+		t.Fatal("no hit")
+	}
 }
 
 func TestHttpError(t *testing.T) {
@@ -181,6 +193,56 @@ func TestResponseTimeout(t *testing.T) {
 
 func TestSafeRetry(t *testing.T) {
 	t.Parallel()
+	port, err := freeport.Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	server := httptest.NewUnstartedServer(sleepHandler(time.Millisecond))
+	transport := &httpcontrol.Transport{
+		MaxTries: 2,
+	}
+	first := false
+	second := false
+	transport.Stats = func(stats *httpcontrol.Stats) {
+		if !first {
+			first = true
+			if stats.Error == nil {
+				t.Fatal("was expecting error")
+			}
+			if !stats.Retry.Pending {
+				t.Fatal("was expecting pending retry", stats.Error)
+			}
+			server.Listener, err = net.Listen("tcp", addr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server.Start()
+			return
+		}
+
+		if !second {
+			second = true
+			if stats.Error != nil {
+				t.Fatal(stats.Error, server.URL)
+			}
+			return
+		}
+	}
+	call(transport.Start, t)
+	defer call(transport.Close, t)
+	client := &http.Client{Transport: transport}
+	res, err := client.Get(fmt.Sprintf("http://%s/", addr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertResponse(res, t)
+	if !first {
+		t.Fatal("did not see first request")
+	}
+	if !second {
+		t.Fatal("did not see second request")
+	}
 }
 
 func TestUnsafeRetry(t *testing.T) {
