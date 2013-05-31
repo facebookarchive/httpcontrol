@@ -244,11 +244,3 @@ func TestSafeRetry(t *testing.T) {
 		t.Fatal("did not see second request")
 	}
 }
-
-func TestUnsafeRetry(t *testing.T) {
-	t.Parallel()
-}
-
-func TestRedirect(t *testing.T) {
-	t.Parallel()
-}
