@@ -26,7 +26,8 @@ type Stats struct {
 	// May not always be available.
 	Response *http.Response
 
-	// Will be set if the RoundTrip resulted in an error.
+	// Will be set if the RoundTrip resulted in an error. Note that these are
+	// RoundTrip errors and we do not care about the HTTP Status.
 	Error error
 
 	// Each duration is independent and the sum of all of them is the total
