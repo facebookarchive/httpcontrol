@@ -3,9 +3,11 @@
 package httpcontrol
 
 import (
+	"bytes"
 	"container/heap"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -45,6 +47,17 @@ type Stats struct {
 		// pending.
 		Pending bool
 	}
+}
+
+func (s *Stats) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s %s", s.Request.Method, s.Request.URL)
+
+	if s.Response != nil {
+		fmt.Fprintf(&buf, " got response with status %s", s.Response.Status)
+	}
+
+	return buf.String()
 }
 
 // Transport is an implementation of RoundTripper that supports http, https,
