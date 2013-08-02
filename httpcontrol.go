@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,6 +18,11 @@ import (
 
 	"github.com/daaku/go.pqueue"
 )
+
+// For logging of unstructured data.
+type Logger interface {
+	Print(v ...interface{})
+}
 
 // Stats for a RoundTrip.
 type Stats struct {
@@ -39,8 +43,8 @@ type Stats struct {
 	}
 
 	Retry struct {
-		// Will be incremented for each retry. The initial request will have this set
-		// to 0, and the first retry to 1 and so on.
+		// Will be incremented for each retry. The initial request will have this
+		// set to 0, and the first retry to 1 and so on.
 		Count uint
 
 		// Will be set if and only if an error was encountered and a retry is
@@ -125,9 +129,9 @@ type Transport struct {
 	// monitoring purposes.
 	Stats func(*Stats)
 
-	// Debug, if true, will trigger logging of interesting events to aid in
-	// debugging the request flow.
-	Debug bool
+	// DebugLogger if provided will trigger logging of interesting events to aid
+	// in debugging the request flow.
+	DebugLogger Logger
 
 	transport    *http.Transport
 	closeMonitor chan bool
@@ -160,11 +164,15 @@ func shouldRetryError(err error) bool {
 	return false
 }
 
+func (t *Transport) debug(v ...interface{}) {
+	if t.DebugLogger != nil {
+		t.DebugLogger.Print(v...)
+	}
+}
+
 // Start the Transport.
 func (t *Transport) Start() error {
-	if t.Debug {
-		log.Println("httpcontrol: Start")
-	}
+	t.debug("httpcontrol: Start")
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
 	t.transport = &http.Transport{
 		Dial:                dialer.Dial,
@@ -185,9 +193,7 @@ func (t *Transport) Close() error {
 	t.transport.CloseIdleConnections()
 	t.closeMonitor <- true
 	<-t.closeMonitor
-	if t.Debug {
-		log.Println("httpcontrol: Close")
-	}
+	t.debug("httpcontrol: Close")
 	return nil
 }
 
@@ -211,9 +217,7 @@ func (t *Transport) monitor() {
 				}
 
 				req := item.Value.(*http.Request)
-				if t.Debug {
-					log.Printf("httpcontrol: Request Timeout: %s", req.URL)
-				}
+				t.debug("httpcontrol: Request Timeout: %s", req.URL)
 				t.CancelRequest(req)
 			}
 		}
@@ -277,9 +281,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.Debug {
-		log.Printf("httpcontrol: Request: %s", req.URL)
-	}
+	t.debug("httpcontrol: Request: %s", req.URL)
 	return t.tries(req, 0)
 }
 
@@ -362,12 +364,6 @@ func TransportFlag(name string) *Transport {
 		name+".max-tries",
 		0,
 		name+" max retries for known safe failures",
-	)
-	flag.BoolVar(
-		&t.Debug,
-		name+".debug",
-		false,
-		name+" debug logging",
 	)
 	return t
 }
