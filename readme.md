@@ -2,4 +2,4 @@ go.httpcontrol [![Build Status](https://secure.travis-ci.org/daaku/go.httpcontro
 ==============
 
 Package httpcontrol provides timeouts & retries for http.Client:
-Documentation: http://gowalker.org/github.com/daaku/go.httpcontrol
+Documentation: http://godoc.org/github.com/daaku/go.httpcontrol
