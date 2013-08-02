@@ -1,6 +1,6 @@
 go.httpcontrol [![Build Status](https://secure.travis-ci.org/daaku/go.httpcontrol.png)](http://travis-ci.org/daaku/go.httpcontrol)
 ==============
---
+
     import "github.com/daaku/go.httpcontrol"
 
 Package httpcontrol allows a HTTP transport supporting connection pooling,
