@@ -244,3 +244,10 @@ func TestSafeRetry(t *testing.T) {
 		t.Fatal("did not see second request")
 	}
 }
+
+func TestFlag(t *testing.T) {
+	c := httpcontrol.TransportFlag("testcontrol")
+	if c == nil {
+		t.Fatal("did not get an instance")
+	}
+}
