@@ -1,5 +1,16 @@
-// Package httpcontrol allows for HTTP transport level control around
-// timeouts and retries.
+// Package httpcontrol allows a HTTP transport supporting connection pooling,
+// timeouts & retries.
+//
+// This Transport is built on top of the standard library transport and
+// augments it with additional features. Using it can be as simple as:
+//
+//     client := &http.Client{
+//         Transport: &httpcontrol.Transport{
+//             RequestTimeout: time.Minute,
+//             MaxTries: 3,
+//         },
+//     }
+//     res, err := client.Get("http://example.com/")
 package httpcontrol
 
 import (
@@ -67,9 +78,9 @@ func (s *Stats) String() string {
 }
 
 // Transport is an implementation of RoundTripper that supports http, https,
-// and http proxies (for either http or https with CONNECT). Transport can also
-// cache connections for future re-use. It also provides various timeouts,
-// retry logic and the ability to track request statistics.
+// and http proxies (for either http or https with CONNECT). Transport can
+// cache connections for future re-use, provides various timeouts, retry logic
+// and the ability to track request statistics.
 type Transport struct {
 
 	// Proxy specifies a function to return a proxy for a given
