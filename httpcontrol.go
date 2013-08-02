@@ -19,7 +19,8 @@ import (
 	"github.com/daaku/go.pqueue"
 )
 
-// For logging of unstructured data.
+// For logging of unstructured data. This can be satisfied by log.Logger for
+// example.
 type Logger interface {
 	Print(v ...interface{})
 }
@@ -53,6 +54,7 @@ type Stats struct {
 	}
 }
 
+// A human readable representation often useful for debugging.
 func (s *Stats) String() string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "%s %s", s.Request.Method, s.Request.URL)
@@ -224,6 +226,7 @@ func (t *Transport) monitor() {
 	}
 }
 
+// CancelRequest cancels an in-flight request by closing its connection.
 func (t *Transport) CancelRequest(req *http.Request) {
 	t.transport.CancelRequest(req)
 }
@@ -280,6 +283,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	return res, nil
 }
 
+// RoundTrip implements the RoundTripper interface.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	t.debug("httpcontrol: Request: %s", req.URL)
 	return t.tries(req, 0)
