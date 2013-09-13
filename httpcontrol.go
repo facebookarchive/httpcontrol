@@ -142,10 +142,6 @@ type Transport struct {
 	// monitoring purposes.
 	Stats func(*Stats)
 
-	// DebugLogger if provided will trigger logging of interesting events to aid
-	// in debugging the request flow.
-	DebugLogger Logger
-
 	transport    *http.Transport
 	closeMonitor chan bool
 	pqMutex      sync.Mutex
@@ -177,15 +173,8 @@ func shouldRetryError(err error) bool {
 	return false
 }
 
-func (t *Transport) debug(v ...interface{}) {
-	if t.DebugLogger != nil {
-		t.DebugLogger.Print(v...)
-	}
-}
-
 // Start the Transport.
 func (t *Transport) Start() error {
-	t.debug("httpcontrol: Start")
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
 	t.transport = &http.Transport{
 		Dial:                dialer.Dial,
@@ -206,7 +195,6 @@ func (t *Transport) Close() error {
 	t.transport.CloseIdleConnections()
 	t.closeMonitor <- true
 	<-t.closeMonitor
-	t.debug("httpcontrol: Close")
 	return nil
 }
 
@@ -230,7 +218,6 @@ func (t *Transport) monitor() {
 				}
 
 				req := item.Value.(*http.Request)
-				t.debug("httpcontrol: Request Timeout: %s", req.URL)
 				t.CancelRequest(req)
 			}
 		}
@@ -296,7 +283,6 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 
 // RoundTrip implements the RoundTripper interface.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	t.debug("httpcontrol: Request: %s", req.URL)
 	return t.tries(req, 0)
 }
 
