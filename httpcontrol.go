@@ -2,15 +2,7 @@
 // timeouts & retries.
 //
 // This Transport is built on top of the standard library transport and
-// augments it with additional features. Using it can be as simple as:
-//
-//     client := &http.Client{
-//         Transport: &httpcontrol.Transport{
-//             RequestTimeout: time.Minute,
-//             MaxTries: 3,
-//         },
-//     }
-//     res, err := client.Get("http://example.com/")
+// augments it with additional features.
 package httpcontrol
 
 import (
@@ -29,12 +21,6 @@ import (
 
 	"github.com/daaku/go.pqueue"
 )
-
-// For logging of unstructured data. This can be satisfied by log.Logger for
-// example.
-type Logger interface {
-	Print(v ...interface{})
-}
 
 // Stats for a RoundTrip.
 type Stats struct {
