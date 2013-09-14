@@ -164,12 +164,13 @@ func shouldRetryError(err error) bool {
 func (t *Transport) start() {
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
 	t.transport = &http.Transport{
-		Dial:                dialer.Dial,
-		Proxy:               t.Proxy,
-		TLSClientConfig:     t.TLSClientConfig,
-		DisableKeepAlives:   t.DisableKeepAlives,
-		DisableCompression:  t.DisableCompression,
-		MaxIdleConnsPerHost: t.MaxIdleConnsPerHost,
+		Dial:                  dialer.Dial,
+		Proxy:                 t.Proxy,
+		TLSClientConfig:       t.TLSClientConfig,
+		DisableKeepAlives:     t.DisableKeepAlives,
+		DisableCompression:    t.DisableCompression,
+		MaxIdleConnsPerHost:   t.MaxIdleConnsPerHost,
+		ResponseHeaderTimeout: t.ResponseHeaderTimeout,
 	}
 	t.closeMonitor = make(chan bool)
 	t.pq = pqueue.New(16)
