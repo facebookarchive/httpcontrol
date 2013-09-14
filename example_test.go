@@ -18,13 +18,6 @@ func Example() {
 		MaxTries:       3,
 	}
 
-	// The Transport needs to be started. This should be done once on application
-	// startup.
-	if err := transport.Start(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
 	// It can then be used as the Transport in a HTTP client (or used directly
 	// via RoundTrip).
 	client := &http.Client{Transport: transport}

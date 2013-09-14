@@ -78,7 +78,6 @@ func TestOkWithDefaults(t *testing.T) {
 			t.Fatal("was expecting no retry pending")
 		}
 	}
-	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
@@ -101,7 +100,6 @@ func TestHttpError(t *testing.T) {
 			t.Fatal(stats.Error)
 		}
 	}
-	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
@@ -124,7 +122,6 @@ func TestDialNoServer(t *testing.T) {
 			t.Fatal("was expecting error")
 		}
 	}
-	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
@@ -150,7 +147,6 @@ func TestResponseHeaderTimeout(t *testing.T) {
 			t.Fatal("was expecting error")
 		}
 	}
-	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
@@ -176,7 +172,6 @@ func TestResponseTimeout(t *testing.T) {
 			t.Fatal("was expecting error")
 		}
 	}
-	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
@@ -229,7 +224,6 @@ func TestSafeRetry(t *testing.T) {
 			return
 		}
 	}
-	call(transport.Start, t)
 	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(fmt.Sprintf("http://%s/", addr))

@@ -129,6 +129,7 @@ type Transport struct {
 	Stats func(*Stats)
 
 	transport    *http.Transport
+	startOnce    sync.Once
 	closeMonitor chan bool
 	pqMutex      sync.Mutex
 	pq           pqueue.PriorityQueue
@@ -160,7 +161,7 @@ func shouldRetryError(err error) bool {
 }
 
 // Start the Transport.
-func (t *Transport) Start() error {
+func (t *Transport) start() {
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
 	t.transport = &http.Transport{
 		Dial:                dialer.Dial,
@@ -173,7 +174,6 @@ func (t *Transport) Start() error {
 	t.closeMonitor = make(chan bool)
 	t.pq = pqueue.New(16)
 	go t.monitor()
-	return nil
 }
 
 // Close the Transport.
@@ -269,6 +269,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 
 // RoundTrip implements the RoundTripper interface.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.startOnce.Do(t.start)
 	return t.tries(req, 0)
 }
 
