@@ -108,7 +108,7 @@ func TestHttpError(t *testing.T) {
 	}
 	assertResponse(res, t)
 	if res.StatusCode != 500 {
-		t.Fatal("was expecting 500 got %d", res.StatusCode)
+		t.Fatalf("was expecting 500 got %d", res.StatusCode)
 	}
 }
 
