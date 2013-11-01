@@ -140,7 +140,7 @@ type Transport struct {
 func (t *Transport) start() {
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
 	if t.ShouldRetry == nil {
-		t.ShouldRetry = shouldRetryDefault
+		t.ShouldRetry = ShouldRetryDefault
 	}
 	t.transport = &http.Transport{
 		Dial:                  dialer.Dial,
@@ -202,8 +202,14 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	t.pqMutex.Lock()
 	heap.Push(&t.pq, item)
 	t.pqMutex.Unlock()
+
+	if t.Wait != nil {
+		t.Wait(try)
+	}
+
 	res, err := t.transport.RoundTrip(req)
 	headerTime := time.Now()
+
 	if t.ShouldRetry(req, res, err) {
 		t.pqMutex.Lock()
 		if item.Index != -1 {
@@ -226,9 +232,6 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 			if t.Stats != nil {
 				stats.Retry.Pending = true
 				t.Stats(stats)
-			}
-			if t.Wait != nil {
-				t.Wait(try)
 			}
 			return t.tries(req, try+1)
 		}
