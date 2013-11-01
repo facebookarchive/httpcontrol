@@ -1,6 +1,8 @@
 package httpcontrol
 
 import (
+	"fmt"
+	"log"
 	"math"
 	"net"
 	"net/http"
@@ -8,20 +10,34 @@ import (
 	"time"
 )
 
-type Retriable func(*http.Request, *http.Response, error) bool
+type Retriable func(*http.Request, *http.Response, error)
 
 type Wait func(try uint) time.Duration
 
 type RetryPolicy struct {
-	retriables []Retriable
+	Retriables []Retriable
+}
+
+// Proceed to the next filter
+func (rp *RetryPolicy) next() Retriable {
+}
+
+func (rp *RetryPolicy) abort() {
 }
 
 func (rp *RetryPolicy) CanRetry(req *http.Request, resp *http.Response, err error) bool {
-	if rp == nil {
-		return true
+	if rp == nil || rp.Retriables == nil {
+		return false
+		if err != nil {
+			return true
+		} else {
+			return false
+		}
 	}
-	for _, retriable := range rp.retriables {
+	log.Println("Retrying")
+	for _, retriable := range rp.Retriables {
 		if !retriable(req, resp, err) {
+			fmt.Println("False!")
 			return false
 		}
 	}
@@ -37,50 +53,45 @@ var knownFailureSuffixes = []string{
 	"unexpected EOF.",
 }
 
-func TemporaryError(req *http.Request, resp *http.Response, err error) bool {
-	if err == nil {
-		return true
-	}
-	if neterr, ok := err.(net.Error); ok {
-		if neterr.Temporary() {
-			return true
+func (rp *RetryPolicy) TemporaryError(req *http.Request, resp *http.Response, err error) {
+	if err != nil {
+		if neterr, ok := err.(net.Error); ok {
+			if neterr.Temporary() {
+				rp.next()
+			}
 		}
 	}
-	return false
 }
 
-func NetworkError(req *http.Request, resp *http.Response, err error) bool {
-	if err == nil {
-		return true
-	}
-	s := err.Error()
-	for _, suffix := range knownFailureSuffixes {
-		if strings.HasSuffix(s, suffix) {
-			return true
+func (rp *RetryPolicy) NetworkError(req *http.Request, resp *http.Response, err error) {
+	if err != nil {
+		s := err.Error()
+		for _, suffix := range knownFailureSuffixes {
+			if strings.HasSuffix(s, suffix) {
+				rp.next()
+			}
 		}
 	}
-	return false
 }
 
-func RetryOnGet(req *http.Request, res *http.Response, err error) bool {
-	if req == nil {
-		return true
+func (rp *RetryPolicy) RetryOnGet(req *http.Request, res *http.Response, err error) {
+	if req != nil {
+		if req.Method == "GET" {
+			rp.next()
+		}
 	}
-	if req.Method == "GET" {
-		return true
-	}
-	return false
 }
 
-func RetryOn4xx(req *http.Request, res *http.Response, err error) bool {
-	if res == nil {
-		return true
+func (rp *RetryPolicy) RetryOn4xx(req *http.Request, res *http.Response, err error) {
+	if res != nil {
+		if 500 > res.StatusCode && res.StatusCode >= 400 {
+			rp.next()
+		}
 	}
-	return 500 > res.StatusCode && res.StatusCode >= 400
 }
 
-func AlwaysRetry(req *http.Request, resp *http.Response, err error) bool {
-	return true
+func (rp *RetryPolicy) AlwaysRetry(req *http.Request, resp *http.Response, err error) {
+	rp.next()
 }
 
 func ExpBackoff(try uint) {

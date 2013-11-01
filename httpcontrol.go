@@ -233,9 +233,11 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 		if t.Stats != nil {
 			t.Stats(stats)
 		}
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
+	}
+
+	if res == nil {
+		return res, err
 	}
 
 	res.Body = &bodyCloser{
