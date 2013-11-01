@@ -8,36 +8,18 @@ import (
 	"time"
 )
 
-type Retriable func(*http.Response, error) bool
+type Retriable func(*http.Request, *http.Response, error) bool
 
 type waitTime func(try uint) time.Duration
 
-/*
-type RetryPolicy interface {
-	Retriable(*http.Response, error) bool
-	Wait(uint)
-}
-*/
-
 type RetryPolicy struct {
 	retriables []Retriable
-	/*
-		wait       Wait
-		Retriable  func(*http.Response, error) bool
-	*/
 }
 
-func (rp *RetryPolicy) CanRetry(resp *http.Response, err error) bool {
+func (rp *RetryPolicy) CanRetry(req *http.Request, resp *http.Response, err error) bool {
 	for _, retriable := range rp.retriables {
-		if err != nil {
-			if !retriable(nil, err) {
-				return false
-			}
-		}
-		if resp != nil {
-			if !retriable(resp, err) {
-				return false
-			}
+		if !retriable(req, resp, err) {
+			return false
 		}
 	}
 	return true
@@ -53,6 +35,9 @@ var knownFailureSuffixes = []string{
 }
 
 func TemporaryError(req *http.Request, resp *http.Response, err error) bool {
+	if err == nil {
+		return true
+	}
 	if neterr, ok := err.(net.Error); ok {
 		if neterr.Temporary() {
 			return true
@@ -62,6 +47,9 @@ func TemporaryError(req *http.Request, resp *http.Response, err error) bool {
 }
 
 func NetworkError(req *http.Request, resp *http.Response, err error) bool {
+	if err == nil {
+		return true
+	}
 	s := err.Error()
 	for _, suffix := range knownFailureSuffixes {
 		if strings.HasSuffix(s, suffix) {
@@ -72,6 +60,9 @@ func NetworkError(req *http.Request, resp *http.Response, err error) bool {
 }
 
 func RetryOnGet(req *http.Request, res *http.Response, err error) bool {
+	if req == nil {
+		return true
+	}
 	if req.Method == "GET" {
 		return true
 	}
