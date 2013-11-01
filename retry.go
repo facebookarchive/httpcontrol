@@ -10,7 +10,7 @@ import (
 
 type Retriable func(*http.Request, *http.Response, error) bool
 
-type Wait func(try uint) time.Duration
+type Wait func(try uint)
 
 var knownFailureSuffixes = []string{
 	"connection refused",
