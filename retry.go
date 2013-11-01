@@ -10,13 +10,16 @@ import (
 
 type Retriable func(*http.Request, *http.Response, error) bool
 
-type waitTime func(try uint) time.Duration
+type Wait func(try uint) time.Duration
 
 type RetryPolicy struct {
 	retriables []Retriable
 }
 
 func (rp *RetryPolicy) CanRetry(req *http.Request, resp *http.Response, err error) bool {
+	if rp == nil {
+		return true
+	}
 	for _, retriable := range rp.retriables {
 		if !retriable(req, resp, err) {
 			return false
@@ -76,10 +79,17 @@ func RetryOn4xx(req *http.Request, res *http.Response, err error) bool {
 	return 500 > res.StatusCode && res.StatusCode >= 400
 }
 
+func AlwaysRetry(req *http.Request, resp *http.Response, err error) bool {
+	return true
+}
+
 func ExpBackoff(try uint) {
 	time.Sleep(time.Second * time.Duration(math.Exp2(2)))
 }
 
 func LinearBackoff(try uint) {
 	time.Sleep(time.Second * time.Duration(try))
+}
+
+func NoWait(uint) {
 }

@@ -127,8 +127,8 @@ type Transport struct {
 	// monitoring purposes.
 	Stats func(*Stats)
 
-	retryPolicy  *RetryPolicy
-	WaitTime     waitTime
+	RetryPolicy  *RetryPolicy
+	Wait         Wait
 	transport    *http.Transport
 	startOnce    sync.Once
 	closeMonitor chan bool
@@ -201,7 +201,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	t.pqMutex.Unlock()
 	res, err := t.transport.RoundTrip(req)
 	headerTime := time.Now()
-	if t.retryPolicy.CanRetry(res, err) {
+	if t.RetryPolicy.CanRetry(req, res, err) {
 		t.pqMutex.Lock()
 		if item.Index != -1 {
 			heap.Remove(&t.pq, item.Index)
@@ -224,7 +224,9 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 				stats.Retry.Pending = true
 				t.Stats(stats)
 			}
-			time.Sleep(t.WaitTime(try))
+			if t.Wait != nil {
+				t.Wait(try)
+			}
 			return t.tries(req, try+1)
 		}
 
