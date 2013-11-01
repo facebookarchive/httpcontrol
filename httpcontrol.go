@@ -127,7 +127,7 @@ type Transport struct {
 	// monitoring purposes.
 	Stats func(*Stats)
 
-	RetryPolicy  *RetryPolicy
+	ShouldRetry  Retriable
 	Wait         Wait
 	transport    *http.Transport
 	startOnce    sync.Once
@@ -139,6 +139,9 @@ type Transport struct {
 // Start the Transport.
 func (t *Transport) start() {
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
+	if t.ShouldRetry == nil {
+		t.ShouldRetry = shouldRetryDefault
+	}
 	t.transport = &http.Transport{
 		Dial:                  dialer.Dial,
 		Proxy:                 t.Proxy,
@@ -201,7 +204,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	t.pqMutex.Unlock()
 	res, err := t.transport.RoundTrip(req)
 	headerTime := time.Now()
-	if t.RetryPolicy.CanRetry(req, res, err) {
+	if t.ShouldRetry(req, res, err) {
 		t.pqMutex.Lock()
 		if item.Index != -1 {
 			heap.Remove(&t.pq, item.Index)

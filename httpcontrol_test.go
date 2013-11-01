@@ -196,18 +196,10 @@ func TestSafeRetry(t *testing.T) {
 	server := httptest.NewUnstartedServer(sleepHandler(time.Millisecond))
 	transport := &httpcontrol.Transport{
 		MaxTries: 2,
-		RetryPolicy: &httpcontrol.RetryPolicy{
-			Retriables: []httpcontrol.Retriable{
-				httpcontrol.TemporaryError,
-				httpcontrol.NetworkError,
-				httpcontrol.RetryOnGet,
-			},
-		},
 	}
 	first := false
 	second := false
 	transport.Stats = func(stats *httpcontrol.Stats) {
-		fmt.Println(stats.String())
 		if !first {
 			first = true
 			if stats.Error == nil {
