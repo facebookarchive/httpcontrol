@@ -15,7 +15,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -128,36 +127,13 @@ type Transport struct {
 	// monitoring purposes.
 	Stats func(*Stats)
 
+	retryPolicy  *RetryPolicy
+	WaitTime     waitTime
 	transport    *http.Transport
 	startOnce    sync.Once
 	closeMonitor chan bool
 	pqMutex      sync.Mutex
 	pq           pqueue.PriorityQueue
-}
-
-var knownFailureSuffixes = []string{
-	"connection refused",
-	"connection reset by peer.",
-	"connection timed out.",
-	"no such host.",
-	"remote error: handshake failure",
-	"unexpected EOF.",
-}
-
-func shouldRetryError(err error) bool {
-	if neterr, ok := err.(net.Error); ok {
-		if neterr.Temporary() {
-			return true
-		}
-	}
-
-	s := err.Error()
-	for _, suffix := range knownFailureSuffixes {
-		if strings.HasSuffix(s, suffix) {
-			return true
-		}
-	}
-	return false
 }
 
 // Start the Transport.
@@ -225,7 +201,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	t.pqMutex.Unlock()
 	res, err := t.transport.RoundTrip(req)
 	headerTime := time.Now()
-	if err != nil {
+	if t.retryPolicy.CanRetry(res, err) {
 		t.pqMutex.Lock()
 		if item.Index != -1 {
 			heap.Remove(&t.pq, item.Index)
@@ -243,18 +219,19 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 			stats.Retry.Count = try
 		}
 
-		if try < t.MaxTries && req.Method == "GET" && shouldRetryError(err) {
+		if try < t.MaxTries {
 			if t.Stats != nil {
 				stats.Retry.Pending = true
 				t.Stats(stats)
 			}
+			time.Sleep(t.WaitTime(try))
 			return t.tries(req, try+1)
 		}
 
 		if t.Stats != nil {
 			t.Stats(stats)
 		}
-		return nil, err
+		return res, err
 	}
 
 	res.Body = &bodyCloser{
