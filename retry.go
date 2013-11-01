@@ -69,6 +69,13 @@ func RetryOnGet(req *http.Request, res *http.Response, err error) bool {
 	return false
 }
 
+func RetryOn4xx(req *http.Request, res *http.Response, err error) bool {
+	if res == nil {
+		return true
+	}
+	return 500 > res.StatusCode && res.StatusCode >= 400
+}
+
 func ExpBackoff(try uint) {
 	time.Sleep(time.Second * time.Duration(math.Exp2(2)))
 }
