@@ -197,25 +197,32 @@ func (t *Transport) CancelRequest(req *http.Request) {
 
 func (t *Transport) tries(req *http.Request) (res *http.Response, err error) {
 
-	var try uint = 0
 	var stats *Stats
-	var retry = false
+	try := uint(0)
+	retry := false
 
-	for ; try < t.MaxTries; try += 1 {
-		startTime := time.Now()
-		deadline := startTime.Add(t.RequestTimeout).UnixNano()
-		item := &pqueue.Item{Value: req, Priority: deadline}
+Start:
+	startTime := time.Now()
+	deadline := startTime.Add(t.RequestTimeout).UnixNano()
+	item := &pqueue.Item{Value: req, Priority: deadline}
+	t.pqMutex.Lock()
+	heap.Push(&t.pq, item)
+	t.pqMutex.Unlock()
+
+	if t.Wait != nil {
+		t.Wait(try)
+	}
+
+	res, err = t.transport.RoundTrip(req)
+	headerTime := time.Now()
+
+	if err != nil {
+
 		t.pqMutex.Lock()
-		heap.Push(&t.pq, item)
-		t.pqMutex.Unlock()
-		if t.Wait != nil {
-			t.Wait(try)
+		if item.Index != -1 {
+			heap.Remove(&t.pq, item.Index)
 		}
-
-		res, err := t.transport.RoundTrip(req)
-		headerTime := time.Now()
-
-		retry = t.ShouldRetry(req, res, err)
+		t.pqMutex.Unlock()
 
 		if t.Stats != nil {
 			stats = &Stats{
@@ -227,32 +234,34 @@ func (t *Transport) tries(req *http.Request) (res *http.Response, err error) {
 			stats.Retry.Count = try
 			fmt.Println("Stats:", stats)
 		}
+		fmt.Println("tries", res, err)
+		if t.Stats != nil {
+			t.Stats(stats)
+		}
+		return nil, err
+	}
 
+	retry = t.ShouldRetry(req, res, err)
+	if retry {
 		if t.Stats != nil {
 			stats.Retry.Pending = true
 			t.Stats(stats)
 		}
-
-		t.pqMutex.Lock()
-		if item.Index != -1 {
-			heap.Remove(&t.pq, item.Index)
+		if try < t.MaxTries {
+			goto Start
 		}
-		t.pqMutex.Unlock()
+	}
 
-		fmt.Println("tries", res, err)
-		if !retry {
-			if res != nil {
-				res.Body = &bodyCloser{
-					ReadCloser: res.Body,
-					res:        res,
-					item:       item,
-					transport:  t,
-					startTime:  startTime,
-					headerTime: headerTime,
-				}
-				return res, nil
-			}
+	if res != nil {
+		res.Body = &bodyCloser{
+			ReadCloser: res.Body,
+			res:        res,
+			item:       item,
+			transport:  t,
+			startTime:  startTime,
+			headerTime: headerTime,
 		}
+		return res, nil
 	}
 	return
 }
