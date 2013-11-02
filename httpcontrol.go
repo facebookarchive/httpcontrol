@@ -140,7 +140,7 @@ type Transport struct {
 func (t *Transport) start() {
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
 	if t.ShouldRetry == nil {
-		t.ShouldRetry = shouldRetryDefault
+		t.ShouldRetry = ShouldRetryDefault
 	}
 	t.transport = &http.Transport{
 		Dial:                  dialer.Dial,
@@ -195,23 +195,28 @@ func (t *Transport) CancelRequest(req *http.Request) {
 	t.transport.CancelRequest(req)
 }
 
-func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
-	startTime := time.Now()
-	deadline := startTime.Add(t.RequestTimeout).UnixNano()
-	item := &pqueue.Item{Value: req, Priority: deadline}
-	t.pqMutex.Lock()
-	heap.Push(&t.pq, item)
-	t.pqMutex.Unlock()
-	res, err := t.transport.RoundTrip(req)
-	headerTime := time.Now()
-	if t.ShouldRetry(req, res, err) {
-		t.pqMutex.Lock()
-		if item.Index != -1 {
-			heap.Remove(&t.pq, item.Index)
-		}
-		t.pqMutex.Unlock()
+func (t *Transport) tries(req *http.Request) (res *http.Response, err error) {
 
-		var stats *Stats
+	var try uint = 0
+	var stats *Stats
+	var retry = false
+
+	for ; try < t.MaxTries; try += 1 {
+		startTime := time.Now()
+		deadline := startTime.Add(t.RequestTimeout).UnixNano()
+		item := &pqueue.Item{Value: req, Priority: deadline}
+		t.pqMutex.Lock()
+		heap.Push(&t.pq, item)
+		t.pqMutex.Unlock()
+		if t.Wait != nil {
+			t.Wait(try)
+		}
+
+		res, err := t.transport.RoundTrip(req)
+		headerTime := time.Now()
+
+		retry = t.ShouldRetry(req, res, err)
+
 		if t.Stats != nil {
 			stats = &Stats{
 				Request:  req,
@@ -220,44 +225,42 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 			}
 			stats.Duration.Header = headerTime.Sub(startTime)
 			stats.Retry.Count = try
-		}
-
-		if try < t.MaxTries {
-			if t.Stats != nil {
-				stats.Retry.Pending = true
-				t.Stats(stats)
-			}
-			if t.Wait != nil {
-				t.Wait(try)
-			}
-			return t.tries(req, try+1)
+			fmt.Println("Stats:", stats)
 		}
 
 		if t.Stats != nil {
+			stats.Retry.Pending = true
 			t.Stats(stats)
 		}
-		return nil, err
-	}
 
-	if res == nil {
-		return res, err
-	}
+		t.pqMutex.Lock()
+		if item.Index != -1 {
+			heap.Remove(&t.pq, item.Index)
+		}
+		t.pqMutex.Unlock()
 
-	res.Body = &bodyCloser{
-		ReadCloser: res.Body,
-		res:        res,
-		item:       item,
-		transport:  t,
-		startTime:  startTime,
-		headerTime: headerTime,
+		fmt.Println("tries", res, err)
+		if !retry {
+			if res != nil {
+				res.Body = &bodyCloser{
+					ReadCloser: res.Body,
+					res:        res,
+					item:       item,
+					transport:  t,
+					startTime:  startTime,
+					headerTime: headerTime,
+				}
+				return res, nil
+			}
+		}
 	}
-	return res, nil
+	return
 }
 
 // RoundTrip implements the RoundTripper interface.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	t.startOnce.Do(t.start)
-	return t.tries(req, 0)
+	return t.tries(req)
 }
 
 type bodyCloser struct {

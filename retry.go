@@ -21,7 +21,7 @@ var knownFailureSuffixes = []string{
 	"unexpected EOF.",
 }
 
-func shouldRetryDefault(req *http.Request, res *http.Response, err error) bool {
+func ShouldRetryDefault(req *http.Request, res *http.Response, err error) bool {
 	if err == nil {
 		return false
 	}
