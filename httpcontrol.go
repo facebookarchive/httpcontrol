@@ -232,9 +232,7 @@ Start:
 			}
 			stats.Duration.Header = headerTime.Sub(startTime)
 			stats.Retry.Count = try
-			fmt.Println("Stats:", stats)
 		}
-		fmt.Println("tries", res, err)
 		if t.Stats != nil {
 			t.Stats(stats)
 		}
@@ -248,6 +246,7 @@ Start:
 			t.Stats(stats)
 		}
 		if try < t.MaxTries {
+			try += 1
 			goto Start
 		}
 	}
