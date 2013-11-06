@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/daaku/go.pqueue"
+	"github.com/ParsePlatform/go.pqueue"
 )
 
 // Stats for a RoundTrip.

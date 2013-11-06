@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/daaku/go.freeport"
-	"github.com/daaku/go.httpcontrol"
+	"github.com/ParsePlatform/go.freeport"
+	"github.com/ParsePlatform/go.httpcontrol"
 )
 
 var theAnswer = []byte("42")

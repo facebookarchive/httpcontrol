@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/daaku/go.httpcontrol"
+	"github.com/ParsePlatform/go.httpcontrol"
 )
 
 func Example() {
