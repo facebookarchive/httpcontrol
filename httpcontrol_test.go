@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -239,8 +240,20 @@ func TestSafeRetry(t *testing.T) {
 	}
 }
 
+var (
+	flagCount int
+	flagMutex sync.Mutex
+)
+
+func flagName() string {
+	flagMutex.Lock()
+	defer flagMutex.Unlock()
+	flagCount++
+	return fmt.Sprintf("testcontrol-%d", flagCount)
+}
+
 func TestFlag(t *testing.T) {
-	c := httpcontrol.TransportFlag("testcontrol")
+	c := httpcontrol.TransportFlag(flagName())
 	if c == nil {
 		t.Fatal("did not get an instance")
 	}
