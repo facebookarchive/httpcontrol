@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ParsePlatform/go.pqueue"
+	"github.com/facebookgo/pqueue"
 )
 
 // Stats for a RoundTrip.
@@ -179,6 +180,11 @@ func (t *Transport) start() {
 
 // Close the Transport.
 func (t *Transport) Close() error {
+	// This ensures we were actually started. The alternative is to
+	// have a mutex to check if we have started, which loses the benefit of the
+	// sync.Once.
+	t.startOnce.Do(t.start)
+
 	t.transport.CloseIdleConnections()
 	t.closeMonitor <- true
 	<-t.closeMonitor
@@ -218,7 +224,10 @@ func (t *Transport) CancelRequest(req *http.Request) {
 
 func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	startTime := time.Now()
-	deadline := startTime.Add(t.RequestTimeout).UnixNano()
+	deadline := int64(math.MaxInt64)
+	if t.RequestTimeout != 0 {
+		deadline = startTime.Add(t.RequestTimeout).UnixNano()
+	}
 	item := &pqueue.Item{Value: req, Priority: deadline}
 	t.pqMutex.Lock()
 	heap.Push(&t.pq, item)

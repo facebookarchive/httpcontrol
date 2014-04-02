@@ -1,7 +1,7 @@
-go.httpcontrol [![Build Status](https://secure.travis-ci.org/ParsePlatform/go.httpcontrol.png)](http://travis-ci.org/ParsePlatform/go.httpcontrol)
-==============
+httpcontrol [![Build Status](https://secure.travis-ci.org/facebookgo/httpcontrol.png)](http://travis-ci.org/facebookgo/httpcontrol)
+===========
 
-    import "github.com/ParsePlatform/go.httpcontrol"
+    import "github.com/facebookgo/httpcontrol"
 
 Package httpcontrol allows a HTTP transport supporting connection pooling,
 timeouts & retries.
@@ -17,4 +17,4 @@ with additional features. Using it can be as simple as:
     }
     res, err := client.Get("http://example.com/")
 
-Documentation: http://godoc.org/github.com/ParsePlatform/go.httpcontrol
+Documentation: http://godoc.org/github.com/facebookgo/httpcontrol

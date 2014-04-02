@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ParsePlatform/go.freeport"
-	"github.com/ParsePlatform/go.httpcontrol"
+	"github.com/facebookgo/freeport"
+	"github.com/facebookgo/httpcontrol"
 )
 
 var theAnswer = []byte("42")
@@ -157,8 +157,10 @@ func TestResponseHeaderTimeout(t *testing.T) {
 	if res != nil {
 		t.Fatal("was expecting nil response")
 	}
-	if !strings.Contains(err.Error(), "use of closed network connection") {
-		t.Fatalf("was expecting closed network connection related error, got %s", err)
+
+	const expected = "timeout awaiting response headers"
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf(`expected "%s" got "%s"`, expected, err)
 	}
 }
 

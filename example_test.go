@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/ParsePlatform/go.httpcontrol"
+	"github.com/facebookgo/httpcontrol"
 )
 
 func Example() {
