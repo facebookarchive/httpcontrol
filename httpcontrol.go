@@ -16,7 +16,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -129,6 +128,8 @@ type Transport struct {
 	// monitoring purposes.
 	Stats func(*Stats)
 
+	ShouldRetry  Retriable
+	Wait         Wait
 	transport    *http.Transport
 	startOnce    sync.Once
 	closeMonitor chan bool
@@ -136,34 +137,12 @@ type Transport struct {
 	pq           pqueue.PriorityQueue
 }
 
-var knownFailureSuffixes = []string{
-	"connection refused",
-	"connection reset by peer.",
-	"connection timed out.",
-	"no such host.",
-	"remote error: handshake failure",
-	"unexpected EOF.",
-}
-
-func shouldRetryError(err error) bool {
-	if neterr, ok := err.(net.Error); ok {
-		if neterr.Temporary() {
-			return true
-		}
-	}
-
-	s := err.Error()
-	for _, suffix := range knownFailureSuffixes {
-		if strings.HasSuffix(s, suffix) {
-			return true
-		}
-	}
-	return false
-}
-
 // Start the Transport.
 func (t *Transport) start() {
 	dialer := &net.Dialer{Timeout: t.DialTimeout}
+	if t.ShouldRetry == nil {
+		t.ShouldRetry = ShouldRetryDefault
+	}
 	t.transport = &http.Transport{
 		Dial:                  dialer.Dial,
 		Proxy:                 t.Proxy,
@@ -222,7 +201,13 @@ func (t *Transport) CancelRequest(req *http.Request) {
 	t.transport.CancelRequest(req)
 }
 
-func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
+func (t *Transport) tries(req *http.Request) (res *http.Response, err error) {
+
+	var stats *Stats
+	try := uint(0)
+	retry := false
+
+Start:
 	startTime := time.Now()
 	deadline := int64(math.MaxInt64)
 	if t.RequestTimeout != 0 {
@@ -232,16 +217,22 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	t.pqMutex.Lock()
 	heap.Push(&t.pq, item)
 	t.pqMutex.Unlock()
-	res, err := t.transport.RoundTrip(req)
+
+	if t.Wait != nil {
+		t.Wait(try)
+	}
+
+	res, err = t.transport.RoundTrip(req)
 	headerTime := time.Now()
+
 	if err != nil {
+
 		t.pqMutex.Lock()
 		if item.Index != -1 {
 			heap.Remove(&t.pq, item.Index)
 		}
 		t.pqMutex.Unlock()
 
-		var stats *Stats
 		if t.Stats != nil {
 			stats = &Stats{
 				Request:  req,
@@ -251,36 +242,42 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 			stats.Duration.Header = headerTime.Sub(startTime)
 			stats.Retry.Count = try
 		}
-
-		if try < t.MaxTries && req.Method == "GET" && shouldRetryError(err) {
-			if t.Stats != nil {
-				stats.Retry.Pending = true
-				t.Stats(stats)
-			}
-			return t.tries(req, try+1)
-		}
-
 		if t.Stats != nil {
 			t.Stats(stats)
 		}
 		return nil, err
 	}
 
-	res.Body = &bodyCloser{
-		ReadCloser: res.Body,
-		res:        res,
-		item:       item,
-		transport:  t,
-		startTime:  startTime,
-		headerTime: headerTime,
+	retry = t.ShouldRetry(req, res, err)
+	if retry {
+		if t.Stats != nil {
+			stats.Retry.Pending = true
+			t.Stats(stats)
+		}
+		if try < t.MaxTries {
+			try += 1
+			goto Start
+		}
 	}
-	return res, nil
+
+	if res != nil {
+		res.Body = &bodyCloser{
+			ReadCloser: res.Body,
+			res:        res,
+			item:       item,
+			transport:  t,
+			startTime:  startTime,
+			headerTime: headerTime,
+		}
+		return res, nil
+	}
+	return
 }
 
 // RoundTrip implements the RoundTripper interface.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	t.startOnce.Do(t.start)
-	return t.tries(req, 0)
+	return t.tries(req)
 }
 
 type bodyCloser struct {
