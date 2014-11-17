@@ -140,7 +140,7 @@ var knownFailureSuffixes = []string{
 	"connection refused",
 	"connection reset by peer.",
 	"connection timed out.",
-	"no such host.",
+	"no such host",
 	"remote error: handshake failure",
 	"unexpected EOF.",
 }
