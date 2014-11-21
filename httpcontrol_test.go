@@ -14,6 +14,7 @@ import (
 
 	"github.com/facebookgo/freeport"
 	"github.com/facebookgo/httpcontrol"
+	"io"
 )
 
 var theAnswer = []byte("42")
@@ -32,6 +33,16 @@ func errorHandler(timeout time.Duration) http.Handler {
 			time.Sleep(timeout)
 			w.WriteHeader(500)
 			w.Write(theAnswer)
+		})
+}
+
+func partialWriteNotifyingHandler(startedWriting chan<- struct{}, finishWriting <-chan struct{}) http.Handler {
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte{theAnswer[0]})
+			startedWriting <- struct{}{}
+			<-finishWriting
+			w.Write(theAnswer[1:])
 		})
 }
 
@@ -239,6 +250,44 @@ func TestSafeRetry(t *testing.T) {
 	}
 	if !second {
 		t.Fatal("did not see second request")
+	}
+}
+
+func TestRetryEOF(t *testing.T) {
+	t.Parallel()
+	startedWriting := make(chan struct{})
+	finishWriting := make(chan struct{})
+	server := httptest.NewUnstartedServer(partialWriteNotifyingHandler(startedWriting, finishWriting))
+	go func() {
+		for {
+			<-startedWriting
+			server.CloseClientConnections()
+			finishWriting <- struct{}{}
+		}
+	}()
+	transport := &httpcontrol.Transport{
+		MaxTries: 1,
+	}
+	transport.Stats = func(stats *httpcontrol.Stats) {
+		if stats.Error != io.EOF {
+			t.Fatal("was expecting", io.EOF)
+		}
+		if stats.Retry.Count < transport.MaxTries {
+			if !stats.Retry.Pending {
+				t.Fatal("was expecting pending retry", stats.Error)
+			}
+		} else {
+			if stats.Retry.Pending {
+				t.Fatal("was not expecting pending retry", stats.Error)
+			}
+		}
+	}
+	server.Start()
+	defer call(transport.Close, t)
+	client := &http.Client{Transport: transport}
+	_, err := client.Get(server.URL)
+	if err != nil && !strings.HasSuffix(err.Error(), io.EOF.Error()) {
+		t.Fatal("was expecting", io.EOF)
 	}
 }
 

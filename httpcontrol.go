@@ -143,6 +143,7 @@ var knownFailureSuffixes = []string{
 	"no such host",
 	"remote error: handshake failure",
 	"unexpected EOF.",
+	"EOF",
 }
 
 func shouldRetryError(err error) bool {
