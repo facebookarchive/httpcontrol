@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/facebookgo/pqueue"
+	"syscall"
 )
 
 // Stats for a RoundTrip.
@@ -137,12 +138,13 @@ type Transport struct {
 }
 
 var knownFailureSuffixes = []string{
-	"connection refused",
-	"connection reset by peer.",
-	"connection timed out.",
+	syscall.ECONNREFUSED.Error(),
+	syscall.ECONNRESET.Error(),
+	syscall.ETIMEDOUT.Error(),
 	"no such host",
 	"remote error: handshake failure",
-	"unexpected EOF.",
+	io.ErrUnexpectedEOF.Error(),
+	io.EOF.Error(),
 }
 
 func shouldRetryError(err error) bool {
