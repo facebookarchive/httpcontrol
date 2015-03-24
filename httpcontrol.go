@@ -20,8 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/facebookgo/pqueue"
 	"syscall"
+
+	"github.com/facebookgo/pqueue"
 )
 
 // Stats for a RoundTrip.
@@ -145,6 +146,7 @@ var knownFailureSuffixes = []string{
 	"remote error: handshake failure",
 	io.ErrUnexpectedEOF.Error(),
 	io.EOF.Error(),
+	"request canceled while waiting for connection",
 }
 
 func shouldRetryError(err error) bool {
@@ -226,6 +228,10 @@ func (t *Transport) CancelRequest(req *http.Request) {
 
 func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	startTime := time.Now()
+	if try > 0 {
+		fmt.Printf("\n[tries] RETRY ATTEMPT %d/%d START\n", try, t.MaxTries)
+	}
+
 	deadline := int64(math.MaxInt64)
 	if t.RequestTimeout != 0 {
 		deadline = startTime.Add(t.RequestTimeout).UnixNano()
@@ -237,6 +243,8 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	res, err := t.transport.RoundTrip(req)
 	headerTime := time.Now()
 	if err != nil {
+		fmt.Printf("[tries] attempt: %d error \"%v\" \n", try, err)
+
 		t.pqMutex.Lock()
 		if item.Index != -1 {
 			heap.Remove(&t.pq, item.Index)
@@ -255,17 +263,24 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 		}
 
 		if try < t.MaxTries && req.Method == "GET" && shouldRetryError(err) {
+			fmt.Printf("[tries] RETRYING. ATTEMPT %d/%d\n", try, t.MaxTries)
 			if t.Stats != nil {
 				stats.Retry.Pending = true
 				t.Stats(stats)
 			}
 			return t.tries(req, try+1)
+		} else {
+			fmt.Printf("[tries] will not retry because err %+v (%T): shouldRetryError: %v \n", err, err, shouldRetryError(err))
 		}
 
 		if t.Stats != nil {
 			t.Stats(stats)
 		}
 		return nil, err
+	}
+
+	if try > 0 {
+		fmt.Printf("[tries] SUCCESS. ATTEMPT %d/%d\n", try, t.MaxTries)
 	}
 
 	res.Body = &bodyCloser{
