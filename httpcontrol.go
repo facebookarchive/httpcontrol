@@ -159,23 +159,27 @@ func (t *Transport) shouldRetryError(err error) bool {
 
 	if t.RetryAfterTimeout {
 		if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+			fmt.Printf("TIMEOUT neterr: %v\n", err)
 			return true
 		}
 
 		// http://stackoverflow.com/questions/23494950/specifically-check-for-timeout-error
 		if urlerr, ok := err.(*url.Error); ok {
 			if neturlerr, ok := urlerr.Err.(net.Error); ok && neturlerr.Timeout() {
+				fmt.Printf("TIMEOUT net error inside url error: %v\n", err)
 				return true
 			}
 		}
 		if operr, ok := err.(*net.OpError); ok {
 			if strings.Contains(operr.Error(), "use of closed network connection") {
+				fmt.Printf("TIMEOUT op error: %v\n", err)
 				return true
 			}
 		}
 
 		// The request timed out before we could connect
 		if strings.Contains(err.Error(), "request canceled while waiting for connection") {
+			fmt.Printf("TIMEOUT dial timeout: %v\n", err)
 			return true
 		}
 	}
@@ -287,7 +291,6 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 		}
 
 		if try < t.MaxTries && req.Method == "GET" && t.shouldRetryError(err) {
-			fmt.Printf("[tries] RETRYING. ATTEMPT %d/%d\n", try, t.MaxTries)
 			if t.Stats != nil {
 				stats.Retry.Pending = true
 				t.Stats(stats)
