@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/facebookgo/httpcontrol"
+	"github.com/dvdplm/httpcontrol"
 )
 
 func Example() {

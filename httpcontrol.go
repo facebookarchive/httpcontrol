@@ -122,6 +122,8 @@ type Transport struct {
 	// as the entire body.
 	RequestTimeout time.Duration
 
+	RetryAfterTimeout bool
+
 	// MaxTries, if non-zero, specifies the number of times we will retry on
 	// failure. Retries are only attempted for temporary network errors or known
 	// safe failures.
@@ -146,12 +148,34 @@ var knownFailureSuffixes = []string{
 	"remote error: handshake failure",
 	io.ErrUnexpectedEOF.Error(),
 	io.EOF.Error(),
-	"request canceled while waiting for connection",
 }
 
-func shouldRetryError(err error) bool {
+func (t *Transport) shouldRetryError(err error) bool {
 	if neterr, ok := err.(net.Error); ok {
 		if neterr.Temporary() {
+			return true
+		}
+	}
+
+	if t.RetryAfterTimeout {
+		if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+			return true
+		}
+
+		// http://stackoverflow.com/questions/23494950/specifically-check-for-timeout-error
+		if urlerr, ok := err.(*url.Error); ok {
+			if neturlerr, ok := urlerr.Err.(net.Error); ok && neturlerr.Timeout() {
+				return true
+			}
+		}
+		if operr, ok := err.(*net.OpError); ok {
+			if strings.Contains(operr.Error(), "use of closed network connection") {
+				return true
+			}
+		}
+
+		// The request timed out before we could connect
+		if strings.Contains(err.Error(), "request canceled while waiting for connection") {
 			return true
 		}
 	}
@@ -262,7 +286,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 			stats.Retry.Count = try
 		}
 
-		if try < t.MaxTries && req.Method == "GET" && shouldRetryError(err) {
+		if try < t.MaxTries && req.Method == "GET" && t.shouldRetryError(err) {
 			fmt.Printf("[tries] RETRYING. ATTEMPT %d/%d\n", try, t.MaxTries)
 			if t.Stats != nil {
 				stats.Retry.Pending = true
@@ -270,7 +294,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 			}
 			return t.tries(req, try+1)
 		} else {
-			fmt.Printf("[tries] will not retry because err %+v (%T): shouldRetryError: %v \n", err, err, shouldRetryError(err))
+			fmt.Printf("[tries] will not retry %q because err \"%+v\" (%T): shouldRetryError: %v, tries: %d/%d \n", req.Method, err, err, t.shouldRetryError(err), try, t.MaxTries)
 		}
 
 		if t.Stats != nil {
