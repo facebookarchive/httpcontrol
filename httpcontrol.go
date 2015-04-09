@@ -159,27 +159,23 @@ func (t *Transport) shouldRetryError(err error) bool {
 
 	if t.RetryAfterTimeout {
 		if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-			fmt.Printf("TIMEOUT neterr: %v\n", err)
 			return true
 		}
 
 		// http://stackoverflow.com/questions/23494950/specifically-check-for-timeout-error
 		if urlerr, ok := err.(*url.Error); ok {
 			if neturlerr, ok := urlerr.Err.(net.Error); ok && neturlerr.Timeout() {
-				fmt.Printf("TIMEOUT net error inside url error: %v\n", err)
 				return true
 			}
 		}
 		if operr, ok := err.(*net.OpError); ok {
 			if strings.Contains(operr.Error(), "use of closed network connection") {
-				fmt.Printf("TIMEOUT op error: %v\n", err)
 				return true
 			}
 		}
 
 		// The request timed out before we could connect
 		if strings.Contains(err.Error(), "request canceled while waiting for connection") {
-			fmt.Printf("TIMEOUT dial timeout: %v\n", err)
 			return true
 		}
 	}
@@ -256,9 +252,6 @@ func (t *Transport) CancelRequest(req *http.Request) {
 
 func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	startTime := time.Now()
-	if try > 0 {
-		fmt.Printf("\n[tries] RETRY ATTEMPT %d/%d START\n", try, t.MaxTries)
-	}
 
 	deadline := int64(math.MaxInt64)
 	if t.RequestTimeout != 0 {
@@ -271,8 +264,6 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	res, err := t.transport.RoundTrip(req)
 	headerTime := time.Now()
 	if err != nil {
-		fmt.Printf("[tries] attempt: %d error \"%v\" \n", try, err)
-
 		t.pqMutex.Lock()
 		if item.Index != -1 {
 			heap.Remove(&t.pq, item.Index)
@@ -296,18 +287,12 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 				t.Stats(stats)
 			}
 			return t.tries(req, try+1)
-		} else {
-			fmt.Printf("[tries] will not retry %q because err \"%+v\" (%T): shouldRetryError: %v, tries: %d/%d \n", req.Method, err, err, t.shouldRetryError(err), try, t.MaxTries)
 		}
 
 		if t.Stats != nil {
 			t.Stats(stats)
 		}
 		return nil, err
-	}
-
-	if try > 0 {
-		fmt.Printf("[tries] SUCCESS. ATTEMPT %d/%d\n", try, t.MaxTries)
 	}
 
 	res.Body = &bodyCloser{
