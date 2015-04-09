@@ -122,6 +122,13 @@ type Transport struct {
 	// as the entire body.
 	RequestTimeout time.Duration
 
+	// RetryAfterTimeout, if true, will enable retries for a number of failures
+	// that are probably safe to retry for most cases but, depending on the
+	// context, might not be safe. Retried errors: net.Errors where Timeout()
+	// returns `true` or timeouts that bubble up as url.Error but were originally
+	// net.Error, OpErrors where the request was cancelled (either by this lib or
+	// by the calling code, or finally errors from requests that were cancelled
+	// before the remote side was contacted.
 	RetryAfterTimeout bool
 
 	// MaxTries, if non-zero, specifies the number of times we will retry on
