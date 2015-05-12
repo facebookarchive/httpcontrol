@@ -20,8 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/facebookgo/pqueue"
 	"syscall"
+
+	"github.com/facebookgo/pqueue"
 )
 
 // Stats for a RoundTrip.
@@ -121,6 +122,15 @@ type Transport struct {
 	// as the entire body.
 	RequestTimeout time.Duration
 
+	// RetryAfterTimeout, if true, will enable retries for a number of failures
+	// that are probably safe to retry for most cases but, depending on the
+	// context, might not be safe. Retried errors: net.Errors where Timeout()
+	// returns `true` or timeouts that bubble up as url.Error but were originally
+	// net.Error, OpErrors where the request was cancelled (either by this lib or
+	// by the calling code, or finally errors from requests that were cancelled
+	// before the remote side was contacted.
+	RetryAfterTimeout bool
+
 	// MaxTries, if non-zero, specifies the number of times we will retry on
 	// failure. Retries are only attempted for temporary network errors or known
 	// safe failures.
@@ -147,9 +157,32 @@ var knownFailureSuffixes = []string{
 	io.EOF.Error(),
 }
 
-func shouldRetryError(err error) bool {
+func (t *Transport) shouldRetryError(err error) bool {
 	if neterr, ok := err.(net.Error); ok {
 		if neterr.Temporary() {
+			return true
+		}
+	}
+
+	if t.RetryAfterTimeout {
+		if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+			return true
+		}
+
+		// http://stackoverflow.com/questions/23494950/specifically-check-for-timeout-error
+		if urlerr, ok := err.(*url.Error); ok {
+			if neturlerr, ok := urlerr.Err.(net.Error); ok && neturlerr.Timeout() {
+				return true
+			}
+		}
+		if operr, ok := err.(*net.OpError); ok {
+			if strings.Contains(operr.Error(), "use of closed network connection") {
+				return true
+			}
+		}
+
+		// The request timed out before we could connect
+		if strings.Contains(err.Error(), "request canceled while waiting for connection") {
 			return true
 		}
 	}
@@ -226,6 +259,7 @@ func (t *Transport) CancelRequest(req *http.Request) {
 
 func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 	startTime := time.Now()
+
 	deadline := int64(math.MaxInt64)
 	if t.RequestTimeout != 0 {
 		deadline = startTime.Add(t.RequestTimeout).UnixNano()
@@ -254,7 +288,7 @@ func (t *Transport) tries(req *http.Request, try uint) (*http.Response, error) {
 			stats.Retry.Count = try
 		}
 
-		if try < t.MaxTries && req.Method == "GET" && shouldRetryError(err) {
+		if try < t.MaxTries && req.Method == "GET" && t.shouldRetryError(err) {
 			if t.Stats != nil {
 				stats.Retry.Pending = true
 				t.Stats(stats)
