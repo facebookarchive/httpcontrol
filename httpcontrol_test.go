@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dvdplm/httpcontrol"
 	"github.com/facebookgo/freeport"
+	"github.com/facebookgo/httpcontrol"
 )
 
 var theAnswer = []byte("42")
