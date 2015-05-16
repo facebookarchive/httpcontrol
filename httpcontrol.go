@@ -401,7 +401,7 @@ func TransportFlag(name string) *Transport {
 	flag.DurationVar(
 		&t.DialKeepAlive,
 		name+".dial-keepalive",
-		30*time.Second,
+		0,
 		name+" dial keepalive connection",
 	)
 	flag.DurationVar(
