@@ -8,11 +8,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/facebookgo/ensure"
 	"github.com/facebookgo/freeport"
 	"github.com/facebookgo/httpcontrol"
 )
@@ -383,4 +385,17 @@ func TestFlag(t *testing.T) {
 	if c == nil {
 		t.Fatal("did not get an instance")
 	}
+}
+
+func TestStatsString(t *testing.T) {
+	s := httpcontrol.Stats{
+		Request: &http.Request{
+			Method: "GET",
+			URL:    &url.URL{Path: "/"},
+		},
+		Response: &http.Response{
+			Status: "200 OK",
+		},
+	}
+	ensure.DeepEqual(t, s.String(), "GET / got response with status 200 OK")
 }
