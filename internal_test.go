@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/facebookgo/ensure"
 )
@@ -39,4 +41,17 @@ func TestShouldRetry(t *testing.T) {
 func TestShouldNotRetryRandomError(t *testing.T) {
 	var r Transport
 	ensure.False(t, r.shouldRetryError(errors.New("")))
+}
+
+func TestCancelRequest(t *testing.T) {
+	var called bool
+	timer := time.AfterFunc(time.Hour, func() { called = true })
+	var r Transport
+	r.CancelRequest(&http.Request{
+		Body: &bodyCloser{
+			timer: timer,
+		},
+	})
+	ensure.False(t, called)
+	ensure.False(t, timer.Stop())
 }

@@ -62,12 +62,6 @@ func assertResponse(res *http.Response, t *testing.T) {
 	}
 }
 
-func call(f func() error, t *testing.T) {
-	if err := f(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestOkWithDefaults(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(sleepHandler(time.Millisecond))
@@ -92,7 +86,6 @@ func TestOkWithDefaults(t *testing.T) {
 			t.Fatal("was expecting no retry pending")
 		}
 	}
-	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
 	if err != nil {
@@ -114,7 +107,6 @@ func TestHttpError(t *testing.T) {
 			t.Fatal(stats.Error)
 		}
 	}
-	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
 	if err != nil {
@@ -136,7 +128,6 @@ func TestDialNoServer(t *testing.T) {
 			t.Fatal("was expecting error")
 		}
 	}
-	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
 	if err == nil {
@@ -161,7 +152,6 @@ func TestResponseHeaderTimeout(t *testing.T) {
 			t.Fatal("was expecting error")
 		}
 	}
-	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
 	if err == nil {
@@ -188,7 +178,6 @@ func TestResponseTimeout(t *testing.T) {
 			t.Fatal("was expecting error")
 		}
 	}
-	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(server.URL)
 	if err == nil {
@@ -240,7 +229,6 @@ func TestSafeRetry(t *testing.T) {
 			return
 		}
 	}
-	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	res, err := client.Get(fmt.Sprintf("http://%s/", addr))
 	if err != nil {
@@ -309,7 +297,6 @@ func TestSafeRetryAfterTimeout(t *testing.T) {
 			}
 		}
 	}
-	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	_, err = client.Get(fmt.Sprintf("http://%s/", addr))
 
@@ -360,7 +347,6 @@ func TestRetryEOF(t *testing.T) {
 		}
 	}
 	server.Start()
-	defer call(transport.Close, t)
 	client := &http.Client{Transport: transport}
 	_, err := client.Get(server.URL)
 	if err != nil && !strings.HasSuffix(err.Error(), io.EOF.Error()) {
@@ -398,4 +384,8 @@ func TestStatsString(t *testing.T) {
 		},
 	}
 	ensure.DeepEqual(t, s.String(), "GET / got response with status 200 OK")
+}
+
+func TestCloseIdleConnections(t *testing.T) {
+	(&httpcontrol.Transport{}).CloseIdleConnections()
 }
