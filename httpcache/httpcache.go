@@ -112,7 +112,7 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 type cacheByPath time.Duration
 
 func (c cacheByPath) Key(req *http.Request) string {
-	if req.Method != "GET" && req.Method != "HEAD" {
+	if req.Method != "GET" || req.Method != "HEAD" {
 		return ""
 	}
 	return req.URL.Host + "/" + req.URL.Path
